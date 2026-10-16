@@ -4,6 +4,7 @@
 # include <sys/socket.h>
 # include <netinet/ip_icmp.h>
 # include <netdb.h>
+# include <arpa/inet.h>
 
 # include <sys/time.h>
 # include <stdlib.h>
@@ -19,10 +20,12 @@ typedef struct icmp_packet {
 } icmp_packet;
 
 void init_ping();
-void send_ping(int sockfd, const struct sockaddr *dest_addr, socklen_t addrlen);
-icmp_packet create_icmp_packet();
+void send_ping(int sockfd, struct addrinfo *res);
+icmp_packet create_icmp_packet(int sockfd, struct addrinfo *res);
 uint16_t create_checksum(void *packet, int len);
 
 void cleanup(int sockfd, struct addrinfo *res);
 
+void listen_for_replies(int sockfd, struct addrinfo *res);
+void print_response(size_t packet_size, char *ip_str, int sequence, int ttl, double rtt_ms);
 #endif
