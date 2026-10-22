@@ -7,15 +7,16 @@ OBJECTS = $(SOURCES:.c=.o)
 
 COMPILER = gcc
 
-#FLAGS = -Wall -Wextra -Werror -g3
-FLAGS = -g3
+FLAGS = -Wall -Wextra -Werror -g3
+
+LIBS = -lm
 
 RM = rm -f
 
 all:		$(NAME)
 
 $(NAME):	$(OBJECTS)
-			$(COMPILER) $(FLAGS) $(OBJECTS) -o $(NAME)
+			$(COMPILER) $(FLAGS) $(OBJECTS) $(LIBS) -o $(NAME)
 
 %.o: %.c
 			$(COMPILER) -c $(FLAGS) $< -o $@
