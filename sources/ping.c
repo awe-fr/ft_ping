@@ -1,7 +1,9 @@
 #include "./../headers/ping.h"
 
-bool verbose = false;
+bool echo_request = true; // default to true
+int stop_after = -1; // -1 means no limit
 int ttl_limit = -1; // 1 - 255, -1 means no limit
+bool verbose = false;
 
 int transmitted_count = 0;
 int received_count = 0;
@@ -18,16 +20,44 @@ bool is_running = true;
 
 char *check_options(int argc, char **argv) {
     int address_index = -1;
+    bool skip_next = false;
+
     for (int i = 1; i < argc; i++) {
+        if (skip_next == true) {
+            skip_next = false;
+            continue;
+        }
         if (strncmp(argv[i], "-", 1) == 0) {
             if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--verbose") == 0) {
                 verbose = true;
+            } else if (strcmp(argv[i], "-?") == 0 || strcmp(argv[i], "--help") == 0) {
+                print_help();
+                exit(EXIT_SUCCESS);
+            } else if (strcmp(argv[i], "--usage") == 0) {
+                print_usage();
+                exit(EXIT_SUCCESS);
+            } else if (strcmp(argv[i], "--echo") == 0) {
+                echo_request = true;
             } else if (strncmp(argv[i], "--ttl=", 6) == 0) {
                 ttl_limit = atoi(argv[i]+6);
                 if (ttl_limit <= 0) {
                     printf("ping: option value too small: %d", ttl_limit);
+                    exit(EXIT_FAILURE);
                 } else if (ttl_limit >= 256) {
                     printf("ping: option value too big: %d", ttl_limit);
+                    exit(EXIT_FAILURE);
+                }
+            } else if (strcmp(argv[i], "-c") == 0 || strncmp(argv[i], "--count=", 8) == 0) {
+                if (strcmp(argv[i], "-c") == 0) {
+                    if (i + 1 == argc) {
+                        printf("ping: option requires an argument -- 'c'\n");
+                        printf("Try 'ping --help' or 'ping --usage' for more information.\n");
+                        exit(EXIT_FAILURE);
+                    }
+                    stop_after = atoi(argv[i + 1]);
+                    skip_next = true;
+                } else {
+                    stop_after = atoi(argv[i]+8);
                 }
             }
         } else {
@@ -90,9 +120,12 @@ void init_ping(char *hostname) {
 
     print_header(sockfd, res, hostname);
 
-    while (is_running) {
+    int i = 0;
+
+    while (is_running && i != stop_after) {
         send_ping(sockfd, res);
         listen_for_replies(sockfd, res);
+        i++;
     }
 
     print_statistics(hostname);
@@ -262,6 +295,32 @@ void manage_dest_unreach(int sockfd, struct addrinfo *res, char *buffer, ssize_t
     if (verbose == true) {
         print_verbose_error(sockfd, res, buffer, ip_len);
     }
+}
+
+void print_usage() {
+    printf("Usage: ping [--echo] [-c NUMBER | --count=NUMBER] [-i NUMBER |--interval=NUMBER] [-w N | --timeout=N] [-W N | --linger=N] [-q | --quiet] [-? | --help] [--usage] [-V | --version] HOST ...\n");
+}
+
+void print_help() {
+    printf("Usage: ping [OPTION...] HOST ...\n");
+    printf("Send ICMP ECHO_REQUEST packets to network hosts.\n");
+    printf("\n");
+    printf(" Options controlling ICMP request types:\n");
+    printf("      --echo                 send ICMP_ECHO packets (default)\n");
+    printf("\n");
+    printf(" Options valid for all request types:\n");
+    printf("\n");
+    printf("  -c, --count=NUMBER         stop after sending NUMBER packets\n");
+    printf("  -i, --interval=NUMBER      wait NUMBER seconds between sending each packet\n");  // to implement
+    printf("  -w, --timeout=N            stop after N seconds\n");  // to implement
+    printf("  -W, --linger=N             number of seconds to wait for response\n");  // to implement
+    printf("\n");
+    printf(" Options valid for --echo requests:\n");
+    printf("\n");
+    printf("  -q, --quiet                quiet output\n");  // to implement
+    printf("  -?, --help                 give this help list\n");
+    printf("      --usage                give a short usage message\n");  // to implement
+    printf("  -V, --version              print program version\n");  // to implement
 }
 
 void print_header(int sockfd, struct addrinfo *res, char *hostname) {

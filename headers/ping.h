@@ -37,6 +37,8 @@ void manage_echo_reply(int sockfd, struct addrinfo *res, ssize_t packet_size, ic
 void manage_time_exceeded(int sockfd, struct addrinfo *res, char *buffer, ssize_t ip_len, ssize_t packet_size, char *ip_str);
 void manage_dest_unreach(int sockfd, struct addrinfo *res, char *buffer, ssize_t ip_len, ssize_t packet_size, char *ip_str);
 
+void print_usage();
+void print_help();
 void print_header(int sockfd, struct addrinfo *res, char *hostname);
 void print_statistics(char *hostname);
 void print_verbose_error(int sockfd, struct addrinfo *res, char *buffer, ssize_t ip_len);
