@@ -17,7 +17,7 @@ bool is_running = true;
 
 char *check_options(int argc, char **argv) {
     for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "-") == 0) {
+        if (strncmp(argv[i], "-", 1) == 0) {
             if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--verbose") == 0) {
                 verbose = true;
             }
@@ -229,7 +229,11 @@ void print_header(int sockfd, struct addrinfo *res, char *hostname) {
         exit(EXIT_FAILURE);
     }
 
-    printf("PING %s (%s): %d data bytes\n", hostname, ip_str, (int)sizeof(icmp_packet) - (int)sizeof(struct icmphdr));
+    if (verbose == true) {
+        printf("PING %s (%s): %d data bytes, id 0x%04x = %d\n", hostname, ip_str, (int)sizeof(icmp_packet) - (int)sizeof(struct icmphdr), getpid() & 0xFFFF, getpid() & 0xFFFF);
+    } else {
+        printf("PING %s (%s): %d data bytes\n", hostname, ip_str, (int)sizeof(icmp_packet) - (int)sizeof(struct icmphdr));
+    }
 }
 
 void cleanup(int sockfd, struct addrinfo *res) {
