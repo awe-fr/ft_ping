@@ -39,6 +39,7 @@ void manage_dest_unreach(int sockfd, struct addrinfo *res, char *buffer, ssize_t
 
 void print_usage();
 void print_help();
+void print_version();
 void print_header(int sockfd, struct addrinfo *res, char *hostname);
 void print_statistics(char *hostname);
 void print_verbose_error(int sockfd, struct addrinfo *res, char *buffer, ssize_t ip_len);

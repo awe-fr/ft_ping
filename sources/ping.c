@@ -2,8 +2,10 @@
 
 bool echo_request = true; // default to true
 int stop_after = -1; // -1 means no limit
+double interval = 1.0; // default to 1 second
 int ttl_limit = -1; // 1 - 255, -1 means no limit
 bool verbose = false;
+bool quiet = false;
 
 int transmitted_count = 0;
 int received_count = 0;
@@ -13,8 +15,7 @@ uint16_t seq_count = 0;
 double rtt_min = 0.0;
 double rtt_max = 0.0;
 double rtt_avg = 0.0;
-double rrt_stddev = 0.0; 
-
+double rrt_stddev = 0.0;
 
 bool is_running = true;
 
@@ -30,11 +31,16 @@ char *check_options(int argc, char **argv) {
         if (strncmp(argv[i], "-", 1) == 0) {
             if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--verbose") == 0) {
                 verbose = true;
+            } else if (strcmp(argv[i], "-q") == 0 || strcmp(argv[i], "--quiet") == 0) {
+                quiet = true;
             } else if (strcmp(argv[i], "-?") == 0 || strcmp(argv[i], "--help") == 0) {
                 print_help();
                 exit(EXIT_SUCCESS);
             } else if (strcmp(argv[i], "--usage") == 0) {
                 print_usage();
+                exit(EXIT_SUCCESS);
+            } else if (strcmp(argv[i], "-V") == 0 || strcmp(argv[i], "--version") == 0) {
+                print_version();
                 exit(EXIT_SUCCESS);
             } else if (strcmp(argv[i], "--echo") == 0) {
                 echo_request = true;
@@ -58,6 +64,22 @@ char *check_options(int argc, char **argv) {
                     skip_next = true;
                 } else {
                     stop_after = atoi(argv[i]+8);
+                }
+            } else if (strcmp(argv[i], "-i") == 0 || strncmp(argv[i], "--interval=", 11) == 0) {
+                if (strcmp(argv[i], "-i") == 0) {
+                    if (i + 1 == argc) {
+                        printf("ping: option requires an argument -- 'i'\n");
+                        printf("Try 'ping --help' or 'ping --usage' for more information.\n");
+                        exit(EXIT_FAILURE);
+                    }
+                    interval = atof(argv[i + 1]);
+                    skip_next = true;
+                } else {
+                    interval = atof(argv[i]+11);
+                }
+                if (interval < 2.0) {
+                    printf("ping: option value too small: %.3f\n", interval);
+                    exit(EXIT_FAILURE);
                 }
             }
         } else {
@@ -197,12 +219,12 @@ void listen_for_replies(int sockfd, struct addrinfo *res) {
 
     struct timeval check_timer;
 
-    struct timeval interval;
+    struct timeval time_interval;
 
-    interval.tv_sec = 1;
-    interval.tv_usec = 0;
-    while (((interval.tv_sec) * 1000.0 + (interval.tv_usec) / 1000.0) > 0) {
-        int select_ret = select(sockfd + 1, &readfds, NULL, NULL, &interval);
+    time_interval.tv_sec = (long int)interval;
+    time_interval.tv_usec = (long int)((interval - (long int)interval) * 1000000);
+    while (((time_interval.tv_sec) * 1000.0 + (time_interval.tv_usec) / 1000.0) > 0) {
+        int select_ret = select(sockfd + 1, &readfds, NULL, NULL, &time_interval);
         if (select_ret < 0) {
             if (errno == EINTR){
                 return;
@@ -279,7 +301,9 @@ void manage_echo_reply(int sockfd, struct addrinfo *res, ssize_t packet_size, ic
     }
     rrt_stddev += rtt_ms * rtt_ms;
     
-    printf("%ld bytes from %s: icmp_seq=%d ttl=%d time=%.3f ms\n", packet_size, ip_str, ntohs(icmp_reply->header.un.echo.sequence), ip_hdr->ip_ttl, rtt_ms);
+    if (quiet == false) {
+        printf("%ld bytes from %s: icmp_seq=%d ttl=%d time=%.3f ms\n", packet_size, ip_str, ntohs(icmp_reply->header.un.echo.sequence), ip_hdr->ip_ttl, rtt_ms);
+    }
     received_count++;
 }
 
@@ -298,7 +322,9 @@ void manage_dest_unreach(int sockfd, struct addrinfo *res, char *buffer, ssize_t
 }
 
 void print_usage() {
-    printf("Usage: ping [--echo] [-c NUMBER | --count=NUMBER] [-i NUMBER |--interval=NUMBER] [-w N | --timeout=N] [-W N | --linger=N] [-q | --quiet] [-? | --help] [--usage] [-V | --version] HOST ...\n");
+    printf("Usage: ping [--echo] [-c NUMBER | --count=NUMBER] [-i NUMBER |--interval=NUMBER] [--ttl=N]\n");
+    printf("            [-v | --verbose] [-w N | --timeout=N] [-W N | --linger=N] [-q | --quiet] [-? | --help]\n");
+    printf("            [--usage] [-V | --version] HOST ...\n");
 }
 
 void print_help() {
@@ -312,15 +338,17 @@ void print_help() {
     printf("\n");
     printf("  -c, --count=NUMBER         stop after sending NUMBER packets\n");
     printf("  -i, --interval=NUMBER      wait NUMBER seconds between sending each packet\n");  // to implement
+    printf("      --ttl=N                specify N as time-to-live\n");
+    printf("  -v, --verbose              verbose output\n");
     printf("  -w, --timeout=N            stop after N seconds\n");  // to implement
     printf("  -W, --linger=N             number of seconds to wait for response\n");  // to implement
     printf("\n");
     printf(" Options valid for --echo requests:\n");
     printf("\n");
-    printf("  -q, --quiet                quiet output\n");  // to implement
+    printf("  -q, --quiet                quiet output\n");
     printf("  -?, --help                 give this help list\n");
-    printf("      --usage                give a short usage message\n");  // to implement
-    printf("  -V, --version              print program version\n");  // to implement
+    printf("      --usage                give a short usage message\n");
+    printf("  -V, --version              print program version\n");
 }
 
 void print_header(int sockfd, struct addrinfo *res, char *hostname) {
@@ -336,6 +364,10 @@ void print_header(int sockfd, struct addrinfo *res, char *hostname) {
     } else {
         printf("PING %s (%s): %d data bytes\n", hostname, ip_str, (int)sizeof(icmp_packet) - (int)sizeof(struct icmphdr));
     }
+}
+
+void print_version() {
+    printf("ft_ping version 1.0\n");
 }
 
 void cleanup(int sockfd, struct addrinfo *res) {
