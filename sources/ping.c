@@ -4,6 +4,9 @@ bool echo_request = true; // default to true
 int stop_after = -1; // -1 means no limit
 double interval = 1.0; // default to 1 second
 int ttl_limit = -1; // 1 - 255, -1 means no limit
+int timeout = -1; // -1 means no limit
+struct timeval timeout_timer; // timer for timeout
+int linger_time = -1; // -1 means no limit
 bool verbose = false;
 bool quiet = false;
 
@@ -81,7 +84,39 @@ char *check_options(int argc, char **argv) {
                     printf("ping: option value too small: %.3f\n", interval);
                     exit(EXIT_FAILURE);
                 }
-            }
+            } else if (strcmp(argv[i], "-w") == 0 || strncmp(argv[i], "--timeout=", 10) == 0) {
+                if (strcmp(argv[i], "-w") == 0) {
+                    if (i + 1 == argc) {
+                        printf("ping: option requires an argument -- 'w'\n");
+                        printf("Try 'ping --help' or 'ping --usage' for more information.\n");
+                        exit(EXIT_FAILURE);
+                    }
+                    timeout = atoi(argv[i + 1]);
+                    skip_next = true;
+                } else {
+                    timeout = atoi(argv[i]+10);
+                }
+                if (timeout <= 0) {
+                    printf("ping: option value too small: %d\n", timeout);
+                    exit(EXIT_FAILURE);
+                }
+            } else if (strcmp(argv[i], "-W") == 0 || strncmp(argv[i], "--linger=", 9) == 0) {
+                if (strcmp(argv[i], "-W") == 0) {
+                    if (i + 1 == argc) {
+                        printf("ping: option requires an argument -- 'W'\n");
+                        printf("Try 'ping --help' or 'ping --usage' for more information.\n");
+                        exit(EXIT_FAILURE);
+                    }
+                    linger_time = atoi(argv[i + 1]);
+                    skip_next = true;
+                } else {
+                    linger_time = atoi(argv[i]+9);
+                }
+                if (linger_time <= 0) {
+                    printf("ping: option value too small: %d\n", linger_time);
+                    exit(EXIT_FAILURE);
+                }
+            } 
         } else {
             if (address_index == -1) {
                 address_index = i;
@@ -142,9 +177,29 @@ void init_ping(char *hostname) {
 
     print_header(sockfd, res, hostname);
 
+    if (timeout != -1) {
+        if (gettimeofday(&timeout_timer, NULL) == -1) {
+            perror("gettimeofday");
+            cleanup(sockfd, res);
+            exit(EXIT_FAILURE);
+        }
+    }
+
     int i = 0;
 
     while (is_running && i != stop_after) {
+        if (timeout != -1) {
+            struct timeval current_time;
+            if (gettimeofday(&current_time, NULL) == -1) {
+                perror("gettimeofday");
+                cleanup(sockfd, res);
+                exit(EXIT_FAILURE);
+            }
+            double elapsed_time = (current_time.tv_sec - timeout_timer.tv_sec) + (current_time.tv_usec - timeout_timer.tv_usec) / 1000000.0;
+            if (elapsed_time >= timeout) {
+                break;
+            }
+        }
         send_ping(sockfd, res);
         listen_for_replies(sockfd, res);
         i++;
@@ -292,6 +347,10 @@ void manage_echo_reply(int sockfd, struct addrinfo *res, ssize_t packet_size, ic
 
     double rtt_ms = ms_diff.tv_sec * 1000.0 + ms_diff.tv_usec / 1000.0;
     
+    if (linger_time != -1 && rtt_ms > linger_time * 1000.0) {
+        return;
+    }
+
     rtt_avg += rtt_ms;
     if (rtt_min == 0.0 || rtt_ms < rtt_min) {
         rtt_min = rtt_ms;
@@ -337,7 +396,7 @@ void print_help() {
     printf(" Options valid for all request types:\n");
     printf("\n");
     printf("  -c, --count=NUMBER         stop after sending NUMBER packets\n");
-    printf("  -i, --interval=NUMBER      wait NUMBER seconds between sending each packet\n");  // to implement
+    printf("  -i, --interval=NUMBER      wait NUMBER seconds between sending each packet\n");
     printf("      --ttl=N                specify N as time-to-live\n");
     printf("  -v, --verbose              verbose output\n");
     printf("  -w, --timeout=N            stop after N seconds\n");  // to implement
