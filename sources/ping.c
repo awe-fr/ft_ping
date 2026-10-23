@@ -399,8 +399,8 @@ void print_help() {
     printf("  -i, --interval=NUMBER      wait NUMBER seconds between sending each packet\n");
     printf("      --ttl=N                specify N as time-to-live\n");
     printf("  -v, --verbose              verbose output\n");
-    printf("  -w, --timeout=N            stop after N seconds\n");  // to implement
-    printf("  -W, --linger=N             number of seconds to wait for response\n");  // to implement
+    printf("  -w, --timeout=N            stop after N seconds\n");
+    printf("  -W, --linger=N             number of seconds to wait for response\n");
     printf("\n");
     printf(" Options valid for --echo requests:\n");
     printf("\n");
